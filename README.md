@@ -9,6 +9,8 @@
 - **Generate** — Create on-brand drafts per channel: Reddit (discover subreddits + draft posts), email (subject + body), LinkedIn (post copy).
 - **Manage** — View drafts, re-sync from repo, regenerate; scheduling/publishing planned.
 
+
+Has 11 labs support for voice, and has appollo support for emial outreach 
 **Stack:** Backend — FastAPI, Gemini (summarization), Claude (drafts), PRAW + scraper (Reddit), Supabase. Frontend — Vite, React, shadcn/ui.
 
 ## Docs
