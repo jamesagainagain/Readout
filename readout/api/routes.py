@@ -102,7 +102,7 @@ def generate(req: GenerateRequest):
     except Exception:
         raise HTTPException(status_code=404, detail="Brief not found.")
 
-    if req.channel not in ("reddit", "email", "linkedin"):
+    if req.channel not in ("reddit", "email", "linkedin", "hackernews"):
         raise HTTPException(status_code=422, detail=f"Unknown channel: {req.channel}")
 
     try:

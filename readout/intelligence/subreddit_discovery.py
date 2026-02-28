@@ -1,13 +1,17 @@
 """Intelligent subreddit discovery: product knowledge + brief → ranked subreddit list."""
 
 import json
+import logging
 import re
 import time
+from pathlib import Path
 
 from readout.connectors.dust_client import chat_completion
 from readout.connectors.reddit_client import fetch_subreddit_metadata, search_subreddits
 from readout.connectors.supabase_client import get_brief, get_product_knowledge, upsert_subreddits
 from readout.models.schemas import SubredditInfo
+
+logger = logging.getLogger(__name__)
 
 _QUERY_SYSTEM = """You are a Reddit expert. Given a product description and audience brief,
 return 4-5 search queries to find relevant subreddits. These queries will be fed to Reddit's
@@ -18,6 +22,11 @@ _RANK_SYSTEM = """You are a Reddit expert. Given a list of subreddits and a prod
 rank the top subreddits by relevance and explain in one sentence why each fits.
 Return a JSON array where each object has "name" and "rationale".
 Only include subreddits that are genuinely relevant. Return at most 10."""
+
+_CURATED_RANK_SYSTEM = """You are a Reddit expert. Given a product description and a long list of subreddit names,
+select the subreddits most relevant to this product and explain in one sentence why each fits.
+Return a JSON array where each object has "name" (subreddit name without r/) and "rationale".
+Only include subreddits from the provided list. Return at most 10, ordered by relevance."""
 
 
 def _extract_queries(raw: str) -> list[str]:
@@ -51,6 +60,92 @@ def _build_product_context(knowledge: dict, brief: dict) -> str:
         f"Differentiators: {', '.join(summary.get('differentiators', []) or [])}",
         f"Tech stack: {', '.join(summary.get('tech_stack', []) or [])}",
     ])
+
+
+def _load_curated_subreddits() -> list[dict]:
+    """Load curated subreddit list from readout/data/curated_subreddits.json."""
+    data_dir = Path(__file__).resolve().parent.parent / "data"
+    path = data_dir / "curated_subreddits.json"
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Could not load curated subreddits from %s: %s", path, e)
+        return []
+
+
+def _discover_from_curated(
+    brief: dict,
+    context: str,
+    persist: bool,
+    min_subscribers: int,
+) -> list[SubredditInfo]:
+    """When Reddit search returns nothing, match from curated list using LLM."""
+    curated = _load_curated_subreddits()
+    if not curated:
+        return []
+
+    # Optional filter by min_subscribers where we have data
+    pool = [
+        s for s in curated
+        if s.get("subscribers") is None or s["subscribers"] >= min_subscribers
+    ]
+    if not pool:
+        pool = curated
+
+    # Limit list size for prompt (e.g. first 500 by subscribers)
+    pool = sorted(pool, key=lambda x: (x.get("subscribers") or 0), reverse=True)[:500]
+    list_text = "\n".join(
+        f"- r/{s['name']}" + (f" ({s['subscribers']:,} subscribers)" if s.get("subscribers") else "")
+        for s in pool
+    )
+
+    logger.info(
+        "Subreddit discovery using curated list fallback (no Reddit search results)"
+    )
+    prompt = f"""{context}
+
+Curated subreddit list (choose only from these):
+
+{list_text}
+
+From the list above, select and rank the subreddits most relevant to this product. Return a JSON array of objects with keys: name (subreddit name without r/), rationale (one sentence). Return at most 10."""
+
+    raw_ranked = chat_completion(
+        system=_CURATED_RANK_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    ranked = _extract_ranked(raw_ranked)
+    if not ranked:
+        return []
+
+    name_to_meta = {s["name"].lower(): s for s in pool}
+    results_out: list[SubredditInfo] = []
+    for item in ranked:
+        name = item.get("name", "").lstrip("r/").strip()
+        if not name:
+            continue
+        meta = name_to_meta.get(name.lower(), {})
+        results_out.append(SubredditInfo(
+            name=name,
+            description=None,
+            subscribers=meta.get("subscribers"),
+            rationale=item.get("rationale"),
+        ))
+
+    if persist and results_out:
+        rows = [
+            {
+                "name": s.name,
+                "public_description": s.description,
+                "subscribers": s.subscribers,
+                "topic": brief.get("goals", ""),
+            }
+            for s in results_out
+        ]
+        upsert_subreddits(rows)
+
+    return results_out
 
 
 def discover_subreddits(
@@ -108,7 +203,7 @@ def discover_subreddits(
     top_candidates = candidates[:30]
 
     if not top_candidates:
-        return []
+        return _discover_from_curated(brief, context, persist, min_subscribers)
 
     # Step 4: LLM ranks and adds rationale
     candidates_text = "\n".join(

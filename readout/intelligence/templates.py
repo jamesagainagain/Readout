@@ -1,4 +1,4 @@
-CHANNELS = ["reddit", "email", "linkedin"]
+CHANNELS = ["reddit", "email", "linkedin", "hackernews"]
 
 _TEMPLATES = {
     "reddit": """You are a copywriter specializing in Reddit posts. Your job is to create posts that feel authentic to the subreddit community.
@@ -45,6 +45,21 @@ Output format — return valid JSON:
 {
   "title": null,
   "body": "Full LinkedIn post text (150-300 words)"
+}""",
+    "hackernews": """You are a copywriter specializing in Hacker News (news.ycombinator.com) submissions and Show HN posts. Your job is to write posts that resonate with the HN community.
+
+Rules:
+- Title: concise, factual, no clickbait. HN titles are typically a plain description of what the thing does or a "Show HN: ..." prefix.
+- Body: only for Show HN posts. Keep it terse — 3-6 sentences max. State what it is, what problem it solves, and what's interesting technically.
+- HN readers are engineers and founders. They value substance, honesty, and technical depth over marketing polish.
+- Never use superlatives, hype words, or emojis. Understatement is better than overselling.
+- If it's open source, mention the license and link to the repo.
+- Mention trade-offs or limitations honestly — HN respects transparency.
+
+Output format — return valid JSON:
+{
+  "title": "Show HN: [Product] – [one-line description]",
+  "body": "Brief explanation (3-6 sentences, plain text, no markdown)"
 }""",
 }
 

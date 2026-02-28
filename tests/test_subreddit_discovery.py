@@ -3,7 +3,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from readout.intelligence.subreddit_discovery import _build_product_context, _extract_queries, _extract_ranked
+from readout.intelligence.subreddit_discovery import (
+    _build_product_context,
+    _extract_queries,
+    _extract_ranked,
+    _load_curated_subreddits,
+    _discover_from_curated,
+)
 
 SKIP_LIVE = not os.environ.get("SUPABASE_URL")
 SKIP_REDDIT = not os.environ.get("REDDIT_CLIENT_ID")
@@ -49,6 +55,29 @@ def test_build_product_context_includes_fields():
     assert "A great CLI" in ctx
     assert "founders" in ctx
     assert "fast" in ctx
+
+
+def test_load_curated_subreddits():
+    subs = _load_curated_subreddits()
+    assert isinstance(subs, list)
+    assert len(subs) > 0
+    for s in subs[:5]:
+        assert "name" in s
+        assert isinstance(s["name"], str)
+        if s.get("subscribers") is not None:
+            assert isinstance(s["subscribers"], int)
+
+
+@patch("readout.intelligence.subreddit_discovery.chat_completion")
+def test_discover_from_curated_mocked_llm(mock_chat):
+    mock_chat.return_value = '[{"name": "startups", "rationale": "Good for product launches"}]'
+    brief = {"goals": "awareness"}
+    context = "Product: A SaaS tool. Audience: founders."
+    result = _discover_from_curated(brief, context, persist=False, min_subscribers=1000)
+    assert len(result) == 1
+    assert result[0].name == "startups"
+    assert result[0].rationale == "Good for product launches"
+    mock_chat.assert_called_once()
 
 
 # --- Live tests ---

@@ -25,7 +25,7 @@ export default function OnboardBrief() {
   const [tone, setTone] = useState("Casual & direct");
   const [goal, setGoal] = useState("");
   const [avoid, setAvoid] = useState("");
-  const [channels, setChannels] = useState({ reddit: true, email: true, linkedin: false });
+  const [channels, setChannels] = useState({ reddit: true, email: true, linkedin: false, hackernews: false });
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,15 +218,18 @@ export default function OnboardBrief() {
             <div className="space-y-3">
               <label className="text-sm font-medium">Channels to target</label>
               <div className="flex flex-wrap gap-4">
-                {(["reddit", "email", "linkedin"] as const).map(ch => (
-                  <label key={ch} className="flex items-center gap-2 text-sm cursor-pointer capitalize">
-                    <Checkbox
-                      checked={channels[ch]}
-                      onCheckedChange={(v) => setChannels(prev => ({ ...prev, [ch]: !!v }))}
-                    />
-                    {ch}
-                  </label>
-                ))}
+                {(["reddit", "email", "linkedin", "hackernews"] as const).map(ch => {
+                  const label = ch === "hackernews" ? "Hacker News" : ch;
+                  return (
+                    <label key={ch} className="flex items-center gap-2 text-sm cursor-pointer capitalize">
+                      <Checkbox
+                        checked={channels[ch]}
+                        onCheckedChange={(v) => setChannels(prev => ({ ...prev, [ch]: !!v }))}
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
               </div>
             </div>
 

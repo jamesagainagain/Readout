@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X, TrendingUp, Users, MousePointerClick, Sparkles } from "lucide-react";
+import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X, TrendingUp, Users, MousePointerClick, Sparkles, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -156,7 +156,8 @@ export default function Dashboard() {
     }
   };
 
-  const redditDrafts = drafts.filter(d => d.channel === "reddit");(d => d.channel === "reddit");
+  const redditDrafts = drafts.filter(d => d.channel === "reddit");
+  const hnDrafts = drafts.filter(d => d.channel === "hackernews");
   const emailCount = drafts.filter(d => d.channel === "email").length;
   const linkedinCount = drafts.filter(d => d.channel === "linkedin").length;
 
@@ -166,9 +167,23 @@ export default function Dashboard() {
 
   const channels = [
     { name: "Reddit", icon: MessageSquare, count: redditDrafts.length, status: "ready" },
+    { name: "Hacker News", icon: Flame, count: hnDrafts.length, status: hnDrafts.length ? "ready" : "Not generated" },
     { name: "Email", icon: Mail, count: emailCount, status: emailCount ? "ready" : "Not generated" },
     { name: "LinkedIn", icon: Linkedin, count: linkedinCount, status: linkedinCount ? "ready" : "Not set up" },
   ];
+
+  const [regeneratingHN, setRegeneratingHN] = useState(false);
+
+  const handleRegenerateHN = async () => {
+    if (!brief_id) return;
+    setRegeneratingHN(true);
+    try {
+      await generate({ brief_id, channel: "hackernews", count: 3 });
+      await fetchDrafts();
+    } finally {
+      setRegeneratingHN(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -194,7 +209,7 @@ export default function Dashboard() {
         </div>
 
         {/* Channel cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {channels.map((ch, i) => (
             <motion.div
               key={ch.name}
@@ -488,6 +503,72 @@ export default function Dashboard() {
                 </motion.div>
               );
             })
+          )}
+        </div>
+        {/* Hacker News Drafts */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Flame className="h-4 w-4 text-orange-500" />
+              Hacker News Drafts
+            </h3>
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleRegenerateHN} disabled={regeneratingHN || !brief_id}>
+              {regeneratingHN ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              {regeneratingHN ? "Generating..." : "Generate"}
+            </Button>
+          </div>
+
+          {loadingDrafts ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading drafts…
+            </div>
+          ) : hnDrafts.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No Hacker News drafts yet. Click Generate to create some.</p>
+          ) : (
+            hnDrafts.map((draft, i) => (
+              <motion.div
+                key={draft.id ?? `hn-${i}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.15 }}
+                className="rounded border border-orange-200 dark:border-orange-900/40 bg-[#f6f6ef] dark:bg-[#1a1a17] p-5 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span
+                    className="text-sm font-bold"
+                    style={{ fontFamily: "Verdana, Geneva, sans-serif", color: "#000" }}
+                  >
+                    {draft.title ?? `Show HN: Draft ${i + 1}`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 h-8"
+                      onClick={() => handleCopy(i + 1000, `${draft.title ?? ""}\n\n${draft.body}`)}
+                    >
+                      {copiedIdx === i + 1000 ? (
+                        <><Check className="h-3.5 w-3.5 text-[hsl(var(--sage))]" /> Copied</>
+                      ) : (
+                        <><Copy className="h-3.5 w-3.5" /> Copy</>
+                      )}
+                    </Button>
+                    <PlayButton text={draft.body} />
+                  </div>
+                </div>
+                <p
+                  className="text-[13px] leading-relaxed whitespace-pre-wrap"
+                  style={{ fontFamily: "Verdana, Geneva, sans-serif", color: "#828282" }}
+                >
+                  {draft.body}
+                </p>
+                <div className="flex items-center gap-3 text-xs" style={{ fontFamily: "Verdana, Geneva, sans-serif", color: "#828282" }}>
+                  <span>{draft.body.split(/\s+/).length} words</span>
+                  <span>·</span>
+                  <span className="text-orange-600">news.ycombinator.com</span>
+                </div>
+              </motion.div>
+            ))
           )}
         </div>
       </div>
