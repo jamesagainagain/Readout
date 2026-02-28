@@ -8,8 +8,12 @@ class Settings(BaseSettings):
     reddit_user_agent: str = "readout:1.0"
     supabase_url: str = ""
     supabase_service_role_key: str = ""
-    anthropic_api_key: str = ""
     google_ai_api_key: str = ""
+
+    # Dust.tt for Claude access
+    dust_api_key: str = ""
+    dust_workspace_id: str = ""
+    dust_model: str = "claude-4.5-sonnet"
 
     class Config:
         env_file = ".env"
