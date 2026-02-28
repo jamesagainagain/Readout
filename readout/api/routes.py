@@ -12,11 +12,14 @@ from readout.connectors.supabase_client import (
 from readout.ingestion.github_client import fetch_repo_contents
 from readout.ingestion.markdown_parser import parse_markdown
 from readout.ingestion.summarizer import summarize_product
+from readout.connectors.dust_client import chat_completion
 from readout.intelligence.generator import generate_drafts
 from readout.intelligence.subreddit_discovery import discover_subreddits
 from readout.models.schemas import (
     BriefRequest,
     BriefResponse,
+    ChatRequest,
+    ChatResponse,
     DiscoverSubredditsRequest,
     DiscoverSubredditsResponse,
     Draft,
@@ -136,3 +139,48 @@ def discover(req: DiscoverSubredditsRequest):
         raise HTTPException(status_code=500, detail=f"Discovery failed: {e}")
 
     return DiscoverSubredditsResponse(subreddits=subreddits)
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(req: ChatRequest):
+    """Conversational endpoint: product knowledge + message history → Claude reply.
+
+    Send the full conversation history each time. Claude has full product context
+    loaded as the system prompt — useful for voice brief, Q&A, or plan refinement.
+    """
+    try:
+        knowledge = get_product_knowledge(req.knowledge_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Product knowledge not found.")
+
+    summary = knowledge.get("summary") or {}
+    chunks = knowledge.get("chunks") or []
+    chunks_text = "\n\n".join(
+        f"### {c.get('heading', '')} (level {c.get('level', 1)})\n{c.get('content', '')}"
+        for c in chunks[:10]
+    )
+
+    system = f"""You are an outreach strategist helping a founder craft their go-to-market story.
+You have deep knowledge of their product — use it to give specific, actionable advice.
+
+Product summary:
+{summary.get('product_description', 'N/A')}
+
+Audience: {summary.get('audience', 'N/A')}
+Differentiators: {', '.join(summary.get('differentiators', []) or [])}
+Tech stack: {', '.join(summary.get('tech_stack', []) or [])}
+
+Documentation:
+{chunks_text}
+
+Help the founder refine their outreach brief, choose channels, pick subreddits, or improve drafts.
+Be concise and direct. Ask clarifying questions when needed."""
+
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    try:
+        reply = chat_completion(system=system, messages=messages)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {e}")
+
+    return ChatResponse(reply=reply)
