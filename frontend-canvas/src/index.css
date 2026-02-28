@@ -1,0 +1,187 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 14% 96%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 36 90% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 40 12% 94%;
+    --secondary-foreground: 0 0% 10%;
+
+    --muted: 40 10% 92%;
+    --muted-foreground: 40 6% 42%;
+
+    --accent: 160 30% 60%;
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 36 14% 88%;
+    --input: 36 14% 88%;
+    --ring: 36 90% 45%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 40 12% 94%;
+    --sidebar-foreground: 0 0% 10%;
+    --sidebar-primary: 36 90% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 36 60% 94%;
+    --sidebar-accent-foreground: 36 90% 35%;
+    --sidebar-border: 36 14% 88%;
+    --sidebar-ring: 36 90% 45%;
+
+    /* Custom tokens */
+    --surface-2: 40 12% 94%;
+    --accent-light: 43 95% 93%;
+    --sage: 160 30% 60%;
+    --sage-light: 160 30% 92%;
+  }
+
+  .dark {
+    --background: 220 20% 5%;
+    --foreground: 0 0% 94%;
+
+    --card: 220 18% 9%;
+    --card-foreground: 0 0% 94%;
+
+    --popover: 220 18% 9%;
+    --popover-foreground: 0 0% 94%;
+
+    --primary: 36 90% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 14%;
+    --secondary-foreground: 0 0% 94%;
+
+    --muted: 220 14% 14%;
+    --muted-foreground: 220 8% 56%;
+
+    --accent: 160 30% 60%;
+    --accent-foreground: 0 0% 94%;
+
+    --destructive: 0 70% 40%;
+    --destructive-foreground: 0 0% 94%;
+
+    --border: 220 14% 18%;
+    --input: 220 14% 18%;
+    --ring: 36 90% 45%;
+
+    --sidebar-background: 220 20% 7%;
+    --sidebar-foreground: 0 0% 94%;
+    --sidebar-primary: 36 90% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 14%;
+    --sidebar-accent-foreground: 0 0% 94%;
+    --sidebar-border: 220 14% 18%;
+    --sidebar-ring: 36 90% 45%;
+
+    --surface-2: 220 14% 12%;
+    --accent-light: 36 40% 15%;
+    --sage: 160 30% 50%;
+    --sage-light: 160 20% 15%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+  }
+
+  .font-mono, code, .monospace {
+    font-family: 'Space Mono', monospace;
+  }
+}
+
+@layer components {
+  .readout-card {
+    @apply bg-card rounded-lg border shadow-sm;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .readout-card-hover {
+    @apply readout-card transition-all duration-150;
+  }
+
+  .readout-card-hover:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .amber-pill {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-all duration-150 cursor-pointer;
+    background: hsl(var(--accent-light));
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsl(var(--border));
+  }
+
+  .amber-pill-active {
+    background: hsl(var(--accent-light));
+    color: hsl(var(--primary));
+    border-color: hsl(var(--primary));
+  }
+
+  .sage-badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-mono;
+    background: hsl(var(--sage-light));
+    color: hsl(var(--sage));
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--border)) 50%, hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 1s linear infinite;
+  }
+
+  @keyframes waveform {
+    0%, 100% { height: 8px; }
+    50% { height: 24px; }
+  }
+
+  .waveform-bar {
+    width: 3px;
+    border-radius: 2px;
+    background: hsl(var(--primary));
+    animation: waveform 0.6s ease-in-out infinite;
+  }
+}
