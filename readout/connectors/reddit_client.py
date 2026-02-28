@@ -1,8 +1,15 @@
+import logging
 import time
 
 import praw
 
 from readout.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def _has_reddit_credentials() -> bool:
+    return bool(settings.reddit_client_id and settings.reddit_client_secret)
 
 
 def _reddit():
@@ -14,18 +21,30 @@ def _reddit():
 
 
 def search_subreddits(query: str, limit: int = 20) -> list[dict]:
-    """Search Reddit for subreddits matching a query."""
-    reddit = _reddit()
-    results = []
-    for sub in reddit.subreddits.search(query, limit=limit):
-        results.append(
-            {
-                "name": sub.display_name,
-                "public_description": sub.public_description,
-                "subscribers": sub.subscribers,
-                "over18": sub.over18,
-            }
-        )
+    """Search Reddit for subreddits matching a query. Uses PRAW when credentials are set; falls back to scraping old.reddit.com otherwise or on API failure."""
+    if _has_reddit_credentials():
+        try:
+            reddit = _reddit()
+            results = []
+            for sub in reddit.subreddits.search(query, limit=limit):
+                results.append(
+                    {
+                        "name": sub.display_name,
+                        "public_description": sub.public_description,
+                        "subscribers": sub.subscribers,
+                        "over18": sub.over18,
+                    }
+                )
+            return results
+        except Exception as e:
+            logger.warning("Reddit API search failed, using scraper fallback: %s", e)
+    else:
+        logger.debug("No Reddit API credentials; using scraper for subreddit search")
+
+    from readout.connectors.reddit_scraper import scrape_subreddit_search
+
+    results = scrape_subreddit_search(query, limit=limit)
+    time.sleep(0.5)
     return results
 
 

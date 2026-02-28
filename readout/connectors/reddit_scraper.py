@@ -43,7 +43,12 @@ def scrape_subreddit_search(query: str, limit: int = 20) -> list[dict]:
                 pass
 
         results.append(
-            {"name": name, "description": description, "subscribers": subscribers}
+            {
+                "name": name,
+                "public_description": description,
+                "subscribers": subscribers,
+                "over18": False,
+            }
         )
 
         if len(results) >= limit:

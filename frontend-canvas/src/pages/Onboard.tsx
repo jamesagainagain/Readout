@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Github, Link, Check, FileText, FolderOpen, FileArchive, Loader2 } from "lucide-react";
+import { Github, Link, Check, FileText, FolderOpen, FileArchive, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,10 +25,34 @@ export default function Onboard() {
   const [includes, setIncludes] = useState({ readme: true, docs: true, changelog: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const searchCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const filteredRepos = mockRepos.filter(r =>
     r.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // When dropdown is open, show search filter; when closed, show selected repo so user can re-open and pick a different one
+  const inputValue = searchOpen ? searchQuery : (selectedRepo || "");
+  const showClear = !!selectedRepo && !searchOpen;
+
+  function openDropdown() {
+    if (searchCloseTimerRef.current) {
+      clearTimeout(searchCloseTimerRef.current);
+      searchCloseTimerRef.current = null;
+    }
+    setSearchOpen(true);
+    setSearchQuery(""); // show all repos so user can pick a different one
+  }
+
+  function closeDropdown() {
+    searchCloseTimerRef.current = setTimeout(() => setSearchOpen(false), 150);
+  }
+
+  function clearSelection() {
+    setSelectedRepo("");
+    setSearchQuery("");
+    setSearchOpen(true);
+  }
 
   const canConnect = (selectedRepo || repoUrl) && !loading;
 
@@ -118,20 +142,39 @@ export default function Onboard() {
               <div className="relative">
                 <Input
                   placeholder="Search your repositories..."
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
-                  onFocus={() => setSearchOpen(true)}
-                  className="bg-background"
+                  value={inputValue}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={openDropdown}
+                  onBlur={closeDropdown}
+                  className="bg-background pr-9"
                 />
+                {showClear && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); clearSelection(); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                    aria-label="Clear selection"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
                 {searchOpen && (
                   <div className="absolute z-10 w-full mt-1 readout-card border max-h-48 overflow-auto">
                     {filteredRepos.map(repo => (
                       <button
                         key={repo}
+                        type="button"
                         className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2 ${
                           selectedRepo === repo ? "bg-[hsl(var(--accent-light))] text-[hsl(var(--primary))]" : ""
                         }`}
-                        onClick={() => { setSelectedRepo(repo); setSearchOpen(false); setSearchQuery(repo); }}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSelectedRepo(repo);
+                          setSearchOpen(false);
+                        }}
                       >
                         <Github className="h-3.5 w-3.5" />
                         {repo}

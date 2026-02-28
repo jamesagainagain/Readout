@@ -7,7 +7,9 @@ def test_scrape_subreddit_search():
     # May return 0 if Reddit blocks — that's ok, test the structure
     if len(results) > 0:
         assert "name" in results[0]
-        assert "description" in results[0]
+        assert "public_description" in results[0]
+        assert "over18" in results[0]
+        assert results[0]["over18"] is False
 
 
 def test_scrape_empty_query():

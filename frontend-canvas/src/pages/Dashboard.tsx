@@ -1,11 +1,63 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X } from "lucide-react";
+import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X, TrendingUp, Users, MousePointerClick } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useReadout } from "@/context/ReadoutContext";
 import { getDrafts, generate, ingest, type Draft } from "@/lib/readoutApi";
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
+
+// ── mock data generators ──────────────────────────────────────────────────────
+function seededNoise(seed: number, i: number) {
+  const x = Math.sin(seed + i * 9.301) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function generateReachData() {
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return days.map((day, i) => ({
+    day,
+    Reddit: Math.round(40 + seededNoise(1, i) * 160 + i * 12),
+    Email:  Math.round(20 + seededNoise(2, i) * 80  + i * 6),
+    LinkedIn: Math.round(10 + seededNoise(3, i) * 50 + i * 4),
+  }));
+}
+
+function generateEngagementData() {
+  return [
+    { channel: "Reddit",   upvotes: 142, comments: 38, shares: 12 },
+    { channel: "Email",    upvotes: 0,   comments: 0,  shares: 24 },
+    { channel: "LinkedIn", upvotes: 67,  comments: 14, shares: 9  },
+  ];
+}
+
+function generatePostPerformance() {
+  return Array.from({ length: 7 }, (_, i) => ({
+    post: `Post ${i + 1}`,
+    score: Math.round(30 + seededNoise(7, i) * 120),
+    clicks: Math.round(10 + seededNoise(11, i) * 60),
+  }));
+}
+
+// ── tiny custom tooltip ───────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="readout-card p-2.5 text-xs shadow-lg min-w-[120px]">
+      <p className="font-mono font-medium mb-1.5 text-muted-foreground">{label}</p>
+      {payload.map(p => (
+        <div key={p.name} className="flex items-center justify-between gap-4">
+          <span style={{ color: p.color }}>{p.name}</span>
+          <span className="font-mono font-semibold">{p.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { brief_id, repoLabel, setKnowledgeId } = useReadout();
@@ -78,6 +130,10 @@ export default function Dashboard() {
   const emailCount = drafts.filter(d => d.channel === "email").length;
   const linkedinCount = drafts.filter(d => d.channel === "linkedin").length;
 
+  const reachData = useMemo(generateReachData, []);
+  const engagementData = useMemo(generateEngagementData, []);
+  const postPerf = useMemo(generatePostPerformance, []);
+
   const channels = [
     { name: "Reddit", icon: MessageSquare, count: redditDrafts.length, status: "ready" },
     { name: "Email", icon: Mail, count: emailCount, status: emailCount ? "ready" : "Not generated" },
@@ -130,6 +186,119 @@ export default function Dashboard() {
               )}
             </motion.div>
           ))}
+        </div>
+
+        {/* Engagement Analytics */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold">Engagement Analytics</h3>
+            <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full">mock data</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-1">
+            {[
+              { icon: Users,            label: "Total Reach",   value: "1,284", delta: "+18%" },
+              { icon: MousePointerClick, label: "Avg. Clicks",   value: "34",    delta: "+7%"  },
+              { icon: TrendingUp,       label: "Engagement Rate", value: "4.2%", delta: "+1.1%" },
+            ].map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08 }}
+                className="readout-card p-4"
+              >
+                <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+                  <stat.icon className="h-3.5 w-3.5" />
+                  <span className="text-xs">{stat.label}</span>
+                </div>
+                <p className="text-2xl font-mono font-semibold">{stat.value}</p>
+                <p className="text-xs text-[hsl(var(--sage))] mt-0.5">{stat.delta} this week</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Reach over time */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="readout-card p-4 space-y-3"
+            >
+              <p className="text-sm font-medium">Reach by Channel (7 days)</p>
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={reachData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gReddit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gEmail" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--sage))" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="hsl(var(--sage))" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gLinkedIn" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="Reddit"   stroke="hsl(var(--primary))" fill="url(#gReddit)"   strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="Email"    stroke="hsl(var(--sage))"    fill="url(#gEmail)"    strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="LinkedIn" stroke="#60a5fa"             fill="url(#gLinkedIn)" strokeWidth={2} dot={false} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </motion.div>
+
+            {/* Post performance */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="readout-card p-4 space-y-3"
+            >
+              <p className="text-sm font-medium">Post Performance (score vs clicks)</p>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={postPerf} margin={{ top: 4, right: 4, left: -24, bottom: 0 }} barGap={2}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="post" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar dataKey="score"  fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Bar dataKey="clicks" fill="hsl(var(--sage))"    radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                </BarChart>
+              </ResponsiveContainer>
+            </motion.div>
+          </div>
+
+          {/* Channel engagement breakdown */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="readout-card p-4 space-y-3"
+          >
+            <p className="text-sm font-medium">Channel Engagement Breakdown</p>
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={engagementData} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }} barGap={3}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="channel" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={64} />
+                <Tooltip content={<ChartTooltip />} />
+                <Bar dataKey="upvotes"  fill="hsl(var(--primary))" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                <Bar dataKey="comments" fill="hsl(var(--sage))"    radius={[0, 3, 3, 0]} maxBarSize={14} />
+                <Bar dataKey="shares"   fill="#60a5fa"             radius={[0, 3, 3, 0]} maxBarSize={14} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              </BarChart>
+            </ResponsiveContainer>
+          </motion.div>
         </div>
 
         {/* Reddit Drafts */}
