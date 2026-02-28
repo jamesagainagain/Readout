@@ -16,7 +16,7 @@ def _headers(token: str | None = None) -> dict:
 
 
 def _get(url: str, token: str | None = None) -> dict | list:
-    resp = httpx.get(url, headers=_headers(token), timeout=30)
+    resp = httpx.get(url, headers=_headers(token), timeout=30, follow_redirects=True)
     resp.raise_for_status()
     return resp.json()
 

@@ -55,13 +55,24 @@ def chat_completion(
 
 {first_message}"""
 
+    model_id = model or settings.dust_model
+
     # Create conversation
     create_url = _workspace_url("/assistant/conversations")
     create_body = {
         "message": {
             "content": context_message,
+            "mentions": [{"configurationId": model_id}],
+            "context": {
+                "timezone": "UTC",
+                "username": "readout",
+                "fullName": "Readout",
+                "email": "readout@readout.dev",
+                "profilePictureUrl": None,
+            },
         },
-        "blocking": True,
+        "visibility": "unlisted",
+        "title": None,
     }
 
     with httpx.Client(timeout=120) as client:
@@ -84,22 +95,22 @@ def chat_completion(
                     if agent_content:
                         return agent_content
 
-        # If blocking didn't return content, poll events
+        # Poll messages until agent reply is complete
         if conv_id:
-            events_url = _workspace_url(
-                f"/assistant/conversations/{conv_id}/events"
-            )
-            resp = client.get(events_url, headers=_headers())
-            resp.raise_for_status()
-            events = resp.json()
-
-            # Extract text from generation events
-            text_parts = []
-            for event in events.get("events", []):
-                if event.get("type") == "generation_tokens":
-                    text_parts.append(event.get("text", ""))
-            if text_parts:
-                return "".join(text_parts)
+            import time
+            for _ in range(60):
+                time.sleep(2)
+                msg_url = _workspace_url(f"/assistant/conversations/{conv_id}")
+                r = client.get(msg_url, headers=_headers())
+                r.raise_for_status()
+                conv_data = r.json().get("conversation", {})
+                for turn in conv_data.get("content", []):
+                    for message in turn:
+                        if message.get("type") == "agent_message":
+                            if message.get("status") == "succeeded":
+                                agent_content = message.get("content", "")
+                                if agent_content:
+                                    return agent_content
 
     raise RuntimeError("No response received from Dust.tt")
 
