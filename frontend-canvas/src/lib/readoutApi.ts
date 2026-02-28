@@ -38,6 +38,19 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface EngagementStat {
+  label: string;
+  value: string;
+  delta: string;
+}
+
+export interface EngagementAnalyticsPayload {
+  stats: EngagementStat[];
+  reach_by_day: Record<string, string | number>[];
+  channel_breakdown: Record<string, string | number>[];
+  post_performance: Record<string, string | number>[];
+}
+
 // --- API functions ---
 
 export function ingest(params: {
@@ -83,4 +96,19 @@ export function chat(params: {
   messages: ChatMessage[];
 }): Promise<{ reply: string }> {
   return request("/chat", { method: "POST", body: JSON.stringify(params) });
+}
+
+export function analyzeEngagement(payload: EngagementAnalyticsPayload): Promise<{ analysis: string }> {
+  return request("/analyze-engagement", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function textToSpeech(text: string): Promise<string> {
+  const res = await fetch(`${base}/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error("TTS failed");
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }

@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X, TrendingUp, Users, MousePointerClick } from "lucide-react";
+import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X, TrendingUp, Users, MousePointerClick, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useReadout } from "@/context/ReadoutContext";
-import { getDrafts, generate, ingest, type Draft } from "@/lib/readoutApi";
+import { getDrafts, generate, ingest, analyzeEngagement, type Draft } from "@/lib/readoutApi";
+import { PlayButton } from "@/components/PlayButton";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -68,6 +71,9 @@ export default function Dashboard() {
   const [regenerating, setRegenerating] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [showEngagementAnalytics, setShowEngagementAnalytics] = useState(true);
+  const [engagementAnalysis, setEngagementAnalysis] = useState<string | null>(null);
+  const [analyzingEngagement, setAnalyzingEngagement] = useState(false);
 
   const fetchDrafts = useCallback(async () => {
     if (!brief_id) return;
@@ -126,7 +132,31 @@ export default function Dashboard() {
 
   const cancelEdit = () => setEditingIdx(null);
 
-  const redditDrafts = drafts.filter(d => d.channel === "reddit");
+  const engagementStats = [
+    { label: "Total Reach", value: "1,284", delta: "+18%" },
+    { label: "Avg. Clicks", value: "34", delta: "+7%" },
+    { label: "Engagement Rate", value: "4.2%", delta: "+1.1%" },
+  ];
+
+  const handleAnalyzeEngagement = async () => {
+    setAnalyzingEngagement(true);
+    setEngagementAnalysis(null);
+    try {
+      const res = await analyzeEngagement({
+        stats: engagementStats,
+        reach_by_day: reachData,
+        channel_breakdown: engagementData,
+        post_performance: postPerf,
+      });
+      setEngagementAnalysis(res.analysis);
+    } catch {
+      setEngagementAnalysis("Analysis failed. Please try again.");
+    } finally {
+      setAnalyzingEngagement(false);
+    }
+  };
+
+  const redditDrafts = drafts.filter(d => d.channel === "reddit");(d => d.channel === "reddit");
   const emailCount = drafts.filter(d => d.channel === "email").length;
   const linkedinCount = drafts.filter(d => d.channel === "linkedin").length;
 
@@ -190,12 +220,40 @@ export default function Dashboard() {
 
         {/* Engagement Analytics */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">Engagement Analytics</h3>
-            <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full">mock data</span>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold">Engagement Analytics</h3>
+              <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full">mock data</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="engagement-analytics"
+                checked={showEngagementAnalytics}
+                onCheckedChange={setShowEngagementAnalytics}
+              />
+              <Label htmlFor="engagement-analytics" className="text-sm text-muted-foreground cursor-pointer">
+                Show analytics
+              </Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleAnalyzeEngagement}
+                disabled={analyzingEngagement || !showEngagementAnalytics}
+              >
+                {analyzingEngagement ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {analyzingEngagement ? "Analyzing…" : "Analyze"}
+              </Button>
+            </div>
           </div>
 
+          {showEngagementAnalytics && (
+          <>
           <div className="grid grid-cols-3 gap-3 mb-1">
             {[
               { icon: Users,            label: "Total Reach",   value: "1,284", delta: "+18%" },
@@ -210,13 +268,14 @@ export default function Dashboard() {
                 className="readout-card p-4"
               >
                 <div className="flex items-center gap-2 mb-1 text-muted-foreground">
-                  <stat.icon className="h-3.5 w-3.5" />
+                  <Icon className="h-3.5 w-3.5" />
                   <span className="text-xs">{stat.label}</span>
                 </div>
                 <p className="text-2xl font-mono font-semibold">{stat.value}</p>
                 <p className="text-xs text-[hsl(var(--sage))] mt-0.5">{stat.delta} this week</p>
               </motion.div>
-            ))}
+            );
+            })}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -299,6 +358,8 @@ export default function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           </motion.div>
+          </>
+          )}
         </div>
 
         {/* Reddit Drafts */}
@@ -350,6 +411,7 @@ export default function Dashboard() {
                               <><Copy className="h-3.5 w-3.5" /> Copy</>
                             )}
                           </Button>
+                          <PlayButton text={draft.body} />
                           <Button
                             variant="ghost"
                             size="sm"
@@ -393,9 +455,9 @@ export default function Dashboard() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="text-sm leading-relaxed"
+                        className="text-sm leading-relaxed bg-muted/40 rounded-lg p-4 border border-border/50 whitespace-pre-wrap"
                       >
-                        "{draft.body}"
+                        {draft.body}
                       </motion.p>
                     )}
                   </AnimatePresence>

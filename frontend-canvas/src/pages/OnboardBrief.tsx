@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useReadout } from "@/context/ReadoutContext";
 import { createBrief } from "@/lib/readoutApi";
+import { PlayButton } from "@/components/PlayButton";
 
 const tones = ["Casual & direct", "Professional", "Technical"];
 
@@ -231,6 +232,18 @@ export default function OnboardBrief() {
 
             {error && (
               <p className="text-sm text-destructive">{error}</p>
+            )}
+
+            {/* Preview aloud */}
+            {audience && (
+              <div className="flex items-center gap-2">
+                <PlayButton
+                  text={`Target audience: ${audience}. ${goal ? `Campaign goal: ${goal}.` : ""} ${avoid ? `Avoid: ${avoid}.` : ""} Tone: ${tone}.`}
+                  variant="outline"
+                  label
+                />
+                <span className="text-xs text-muted-foreground">Preview your brief aloud</span>
+              </div>
             )}
 
             {/* Actions */}

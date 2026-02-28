@@ -88,3 +88,52 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # ElevenLabs "George" voice
+
+
+# --- Apollo / leads ---
+
+
+class Lead(BaseModel):
+    id: str | None = None
+    first_name: str = ""
+    last_name: str = ""
+    title: str | None = None
+    organization_name: str | None = None
+    linkedin_url: str | None = None
+    email: str | None = None
+
+
+class LeadSearchRequest(BaseModel):
+    title: str | None = None
+    industry: str | None = None
+    company_size: str | None = None
+    page: int = 1
+    per_page: int = 25
+
+
+class LeadSearchResponse(BaseModel):
+    leads: list[Lead]
+
+
+class EngagementStat(BaseModel):
+    label: str
+    value: str
+    delta: str
+
+
+class EngagementAnalyticsRequest(BaseModel):
+    """Payload of engagement stats and chart data for AI analysis."""
+
+    stats: list[EngagementStat] = []
+    reach_by_day: list[dict] = []  # [{ day, Reddit, Email, LinkedIn }, ...]
+    channel_breakdown: list[dict] = []  # [{ channel, upvotes, comments, shares }, ...]
+    post_performance: list[dict] = []  # [{ post, score, clicks }, ...]
+
+
+class AnalyzeEngagementResponse(BaseModel):
+    analysis: str

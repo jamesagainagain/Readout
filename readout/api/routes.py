@@ -1,6 +1,8 @@
 """FastAPI route handlers for the Readout API."""
 
+import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 
 from readout.connectors.supabase_client import (
     create_brief,
@@ -13,8 +15,10 @@ from readout.ingestion.github_client import fetch_repo_contents
 from readout.ingestion.markdown_parser import parse_markdown
 from readout.ingestion.summarizer import summarize_product
 from readout.connectors.dust_client import chat_completion
+from readout.connectors.apollo_client import search_people
 from readout.intelligence.generator import generate_drafts
 from readout.intelligence.subreddit_discovery import discover_subreddits
+from readout.config import settings
 from readout.models.schemas import (
     BriefRequest,
     BriefResponse,
@@ -27,6 +31,12 @@ from readout.models.schemas import (
     GenerateResponse,
     IngestRequest,
     IngestResponse,
+    Lead,
+    LeadSearchRequest,
+    LeadSearchResponse,
+    TTSRequest,
+    EngagementAnalyticsRequest,
+    AnalyzeEngagementResponse,
 )
 
 router = APIRouter()
@@ -184,3 +194,101 @@ Be concise and direct. Ask clarifying questions when needed."""
         raise HTTPException(status_code=500, detail=f"Chat failed: {e}")
 
     return ChatResponse(reply=reply)
+
+
+@router.post("/analyze-engagement", response_model=AnalyzeEngagementResponse)
+def analyze_engagement(req: EngagementAnalyticsRequest):
+    """Analyze engagement analytics with an LLM and return concise insights and recommendations."""
+    system = """You are an outreach and content strategist. You analyze engagement metrics across channels (Reddit, Email, LinkedIn) and give brief, actionable insights.
+
+Your response should:
+1. Summarize what’s working (which channel or metric stands out).
+2. Note one or two quick recommendations to improve engagement.
+3. Be concise: 2–4 short paragraphs, no bullet walls. Write in a direct, friendly tone."""
+
+    lines = []
+    if req.stats:
+        lines.append("Summary stats:")
+        for s in req.stats:
+            lines.append(f"  - {s.label}: {s.value} ({s.delta} this week)")
+    if req.reach_by_day:
+        lines.append("\nReach by channel (last 7 days):")
+        for row in req.reach_by_day:
+            parts = [f"{k}={v}" for k, v in row.items() if k != "day" and isinstance(v, (int, float))]
+            lines.append(f"  {row.get('day', '')}: {', '.join(parts)}")
+    if req.channel_breakdown:
+        lines.append("\nChannel engagement breakdown (upvotes, comments, shares):")
+        for row in req.channel_breakdown:
+            lines.append(f"  {row}")
+    if req.post_performance:
+        lines.append("\nPost performance (score vs clicks):")
+        for row in req.post_performance:
+            lines.append(f"  {row}")
+
+    data_text = "\n".join(lines) if lines else "No engagement data provided."
+    user_content = f"Analyze this engagement data and give insights and recommendations.\n\n{data_text}"
+
+    try:
+        analysis = chat_completion(system=system, messages=[{"role": "user", "content": user_content}])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+
+    return AnalyzeEngagementResponse(analysis=analysis.strip())
+
+
+@router.get("/apollo/status")
+def apollo_status():
+    """Return 200 if Apollo is configured (APOLLO_API_KEY set), otherwise 503."""
+    if not settings.apollo_api_key:
+        raise HTTPException(status_code=503, detail="Apollo is not configured. Add APOLLO_API_KEY to the backend .env.")
+    return {"status": "ok"}
+
+
+@router.post("/leads/search", response_model=LeadSearchResponse)
+def leads_search(req: LeadSearchRequest):
+    """Search Apollo for leads by persona filters (title, industry, company size)."""
+    if not settings.apollo_api_key:
+        raise HTTPException(status_code=503, detail="Apollo is not configured. Add APOLLO_API_KEY to the backend .env.")
+    try:
+        raw = search_people(
+            title=req.title or None,
+            industry=req.industry or None,
+            company_size=req.company_size or None,
+            page=req.page,
+            per_page=req.per_page,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (401, 403):
+            raise HTTPException(status_code=502, detail="Invalid Apollo API key.")
+        raise HTTPException(status_code=502, detail=f"Apollo API error: {e.response.text[:200]}")
+    leads = [Lead(**r) for r in raw]
+    return LeadSearchResponse(leads=leads)
+
+
+@router.post("/tts")
+def text_to_speech(req: TTSRequest):
+    """Convert text to speech via ElevenLabs and return MP3 audio bytes."""
+    if not settings.elevenlabs_api_key:
+        raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{req.voice_id}"
+    with httpx.Client(timeout=30) as client:
+        resp = client.post(
+            url,
+            headers={
+                "xi-api-key": settings.elevenlabs_api_key,
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
+            },
+            json={
+                "text": req.text,
+                "model_id": "eleven_turbo_v2_5",
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+            },
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code, detail=f"ElevenLabs error: {resp.text[:200]}")
+
+    return Response(content=resp.content, media_type="audio/mpeg")

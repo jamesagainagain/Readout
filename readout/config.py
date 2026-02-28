@@ -11,12 +11,16 @@ class Settings(BaseSettings):
     google_ai_api_key: str = ""
 
     frontend_origin: str = "http://localhost:8080"
+    # Phase 2 voice: TTS/STT via ElevenLabs; key not used until then
     elevenlabs_api_key: str = ""
 
     # Dust.tt for Claude access
     dust_api_key: str = ""
     dust_workspace_id: str = ""
     dust_model: str = "claude-4.5-sonnet"
+
+    # Apollo.io for lead sourcing (email outreach)
+    apollo_api_key: str = ""
 
     class Config:
         env_file = ".env"
