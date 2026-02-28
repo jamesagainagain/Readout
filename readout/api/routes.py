@@ -37,6 +37,8 @@ from readout.models.schemas import (
     TTSRequest,
     EngagementAnalyticsRequest,
     AnalyzeEngagementResponse,
+    ImproveDraftRequest,
+    ImproveDraftResponse,
 )
 
 router = APIRouter()
@@ -292,3 +294,38 @@ def text_to_speech(req: TTSRequest):
             raise HTTPException(status_code=resp.status_code, detail=f"ElevenLabs error: {resp.text[:200]}")
 
     return Response(content=resp.content, media_type="audio/mpeg")
+
+
+@router.post("/drafts/improve", response_model=ImproveDraftResponse)
+def improve_draft(req: ImproveDraftRequest):
+    """Use AI to suggest improvements to a single draft."""
+    system = f"""You are an expert {req.channel} copywriter. The user will give you a draft post. Improve it while keeping the same core message and intent.
+
+Rules:
+- Keep the same tone and approximate length.
+- Make it more engaging, clear, and natural.
+- If the user provides specific instructions, follow them.
+- Return valid JSON with two keys: "improved_body" (the rewritten draft) and "changes_summary" (1-2 sentences explaining what you changed and why)."""
+
+    user_content = f"Improve this {req.channel} draft:\n\n{req.body}"
+    if req.instruction:
+        user_content += f"\n\nSpecific instructions: {req.instruction}"
+
+    try:
+        raw = chat_completion(system=system, messages=[{"role": "user", "content": user_content}])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Improvement failed: {e}")
+
+    import json, re
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group())
+            return ImproveDraftResponse(
+                improved_body=data.get("improved_body", raw),
+                changes_summary=data.get("changes_summary", ""),
+            )
+        except json.JSONDecodeError:
+            pass
+
+    return ImproveDraftResponse(improved_body=raw.strip(), changes_summary="AI returned unstructured text.")

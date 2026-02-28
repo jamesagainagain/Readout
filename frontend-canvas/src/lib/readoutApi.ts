@@ -126,6 +126,14 @@ export function analyzeEngagement(payload: EngagementAnalyticsPayload): Promise<
   return request("/analyze-engagement", { method: "POST", body: JSON.stringify(payload) });
 }
 
+export function improveDraft(params: {
+  body: string;
+  channel?: string;
+  instruction?: string;
+}): Promise<{ improved_body: string; changes_summary: string }> {
+  return request("/drafts/improve", { method: "POST", body: JSON.stringify(params) });
+}
+
 export async function textToSpeech(text: string): Promise<string> {
   const res = await fetch(`${base}/tts`, {
     method: "POST",

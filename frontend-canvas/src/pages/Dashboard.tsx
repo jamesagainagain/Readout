@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useReadout } from "@/context/ReadoutContext";
-import { getDrafts, generate, ingest, analyzeEngagement, type Draft } from "@/lib/readoutApi";
+import { getDrafts, generate, ingest, analyzeEngagement, improveDraft, type Draft } from "@/lib/readoutApi";
 import { PlayButton } from "@/components/PlayButton";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -74,6 +74,9 @@ export default function Dashboard() {
   const [showEngagementAnalytics, setShowEngagementAnalytics] = useState(true);
   const [engagementAnalysis, setEngagementAnalysis] = useState<string | null>(null);
   const [analyzingEngagement, setAnalyzingEngagement] = useState(false);
+  const [improvingIdx, setImprovingIdx] = useState<number | null>(null);
+  const [improveSuggestion, setImproveSuggestion] = useState<{ idx: number; improved_body: string; changes_summary: string } | null>(null);
+  const [regeneratingSingle, setRegeneratingSingle] = useState<number | null>(null);
 
   const fetchDrafts = useCallback(async () => {
     if (!brief_id) return;
@@ -131,6 +134,48 @@ export default function Dashboard() {
   };
 
   const cancelEdit = () => setEditingIdx(null);
+
+  const handleImprove = async (idx: number) => {
+    const draft = drafts.filter(d => d.channel === "reddit")[idx];
+    if (!draft) return;
+    setImprovingIdx(idx);
+    setImproveSuggestion(null);
+    try {
+      const res = await improveDraft({ body: draft.body, channel: "reddit" });
+      setImproveSuggestion({ idx, improved_body: res.improved_body, changes_summary: res.changes_summary });
+    } catch {
+      setImproveSuggestion({ idx, improved_body: "", changes_summary: "Failed to get suggestions. Try again." });
+    } finally {
+      setImprovingIdx(null);
+    }
+  };
+
+  const acceptSuggestion = () => {
+    if (!improveSuggestion) return;
+    const redditIdxs = drafts.map((d, i) => d.channel === "reddit" ? i : -1).filter(i => i >= 0);
+    const globalIdx = redditIdxs[improveSuggestion.idx];
+    if (globalIdx !== undefined) {
+      setDrafts(prev => prev.map((d, i) => i === globalIdx ? { ...d, body: improveSuggestion.improved_body } : d));
+    }
+    setImproveSuggestion(null);
+  };
+
+  const handleRegenerateSingle = async (idx: number) => {
+    if (!brief_id) return;
+    setRegeneratingSingle(idx);
+    try {
+      const res = await generate({ brief_id, channel: "reddit", count: 1 });
+      if (res.drafts.length > 0) {
+        const redditIdxs = drafts.map((d, i) => d.channel === "reddit" ? i : -1).filter(i => i >= 0);
+        const globalIdx = redditIdxs[idx];
+        if (globalIdx !== undefined) {
+          setDrafts(prev => prev.map((d, i) => i === globalIdx ? { ...d, body: res.drafts[0].body, title: res.drafts[0].title } : d));
+        }
+      }
+    } finally {
+      setRegeneratingSingle(null);
+    }
+  };
 
   const engagementStats = [
     { label: "Total Reach", value: "1,284", delta: "+18%" },
@@ -453,6 +498,25 @@ export default function Dashboard() {
                           >
                             <Pencil className="h-3.5 w-3.5" /> Edit
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1.5 h-8"
+                            onClick={() => handleImprove(i)}
+                            disabled={improvingIdx === i}
+                          >
+                            {improvingIdx === i ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                            {improvingIdx === i ? "Thinking…" : "Improve"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1.5 h-8"
+                            onClick={() => handleRegenerateSingle(i)}
+                            disabled={regeneratingSingle === i}
+                          >
+                            {regeneratingSingle === i ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                          </Button>
                         </>
                       )}
                     </div>
@@ -494,6 +558,29 @@ export default function Dashboard() {
                       </motion.p>
                     )}
                   </AnimatePresence>
+
+                  {improveSuggestion?.idx === i && improveSuggestion.improved_body && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-lg border border-[hsl(var(--sage))]/30 bg-[hsl(var(--sage))]/5 p-4 space-y-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--sage))]" />
+                        <span className="text-xs font-medium text-[hsl(var(--sage))]">AI Suggestion</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground italic">{improveSuggestion.changes_summary}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{improveSuggestion.improved_body}</p>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" className="gap-1.5 bg-[hsl(var(--primary))] text-primary-foreground" onClick={acceptSuggestion}>
+                          <Check className="h-3.5 w-3.5" /> Accept
+                        </Button>
+                        <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => setImproveSuggestion(null)}>
+                          <X className="h-3.5 w-3.5" /> Dismiss
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {!isEditing && (
                     <div className="flex items-center gap-3">

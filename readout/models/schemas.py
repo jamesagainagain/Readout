@@ -137,3 +137,14 @@ class EngagementAnalyticsRequest(BaseModel):
 
 class AnalyzeEngagementResponse(BaseModel):
     analysis: str
+
+
+class ImproveDraftRequest(BaseModel):
+    body: str
+    channel: str = "reddit"
+    instruction: str = ""
+
+
+class ImproveDraftResponse(BaseModel):
+    improved_body: str
+    changes_summary: str
