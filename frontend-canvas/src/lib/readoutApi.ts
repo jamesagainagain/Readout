@@ -91,6 +91,30 @@ export function discoverSubreddits(params: {
   return request("/discover-subreddits", { method: "POST", body: JSON.stringify(params) });
 }
 
+export interface Lead {
+  id?: string;
+  first_name: string;
+  last_name: string;
+  title?: string;
+  organization_name?: string;
+  linkedin_url?: string;
+  email?: string;
+}
+
+export function getApolloStatus(): Promise<{ status: string }> {
+  return request("/apollo/status");
+}
+
+export function searchLeads(params: {
+  title?: string;
+  industry?: string;
+  company_size?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<{ leads: Lead[] }> {
+  return request("/leads/search", { method: "POST", body: JSON.stringify(params) });
+}
+
 export function chat(params: {
   knowledge_id: string;
   messages: ChatMessage[];

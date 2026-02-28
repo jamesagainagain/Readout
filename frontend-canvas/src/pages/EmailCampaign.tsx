@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useReadout } from "@/context/ReadoutContext";
-import { getDrafts, generate } from "@/lib/readoutApi";
+import { getDrafts, generate, getApolloStatus, searchLeads, type Lead } from "@/lib/readoutApi";
 
 export default function EmailCampaign() {
   const { brief_id } = useReadout();
@@ -16,6 +16,13 @@ export default function EmailCampaign() {
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apolloAvailable, setApolloAvailable] = useState<boolean | null>(null);
+  const [leadTitle, setLeadTitle] = useState("");
+  const [leadIndustry, setLeadIndustry] = useState("");
+  const [leadCompanySize, setLeadCompanySize] = useState("");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [leadsError, setLeadsError] = useState<string | null>(null);
 
   async function loadEmailDraft() {
     if (!brief_id) return;
@@ -43,6 +50,32 @@ export default function EmailCampaign() {
   }
 
   useEffect(() => { loadEmailDraft(); }, [brief_id]);
+
+  useEffect(() => {
+    getApolloStatus()
+      .then(() => setApolloAvailable(true))
+      .catch(() => setApolloAvailable(false));
+  }, []);
+
+  const handleFindLeads = async () => {
+    setLeadsError(null);
+    setLeadsLoading(true);
+    try {
+      const res = await searchLeads({
+        title: leadTitle || undefined,
+        industry: leadIndustry || undefined,
+        company_size: leadCompanySize || undefined,
+        per_page: 25,
+      });
+      setLeads(res.leads);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Lead search failed";
+      setLeadsError(msg);
+      setLeads([]);
+    } finally {
+      setLeadsLoading(false);
+    }
+  };
 
   const handleRegenerate = async () => {
     if (!brief_id) return;
@@ -115,8 +148,9 @@ export default function EmailCampaign() {
               <Button variant="outline" className="w-full gap-2 justify-start">
                 <Upload className="h-4 w-4" /> Upload CSV
               </Button>
-              <Button variant="outline" className="w-full gap-2 justify-start">
-                <Link className="h-4 w-4" /> Connect Apollo
+              <Button variant="outline" className="w-full gap-2 justify-start" disabled>
+                <Link className="h-4 w-4" />
+                {apolloAvailable === null ? "Checking Apollo…" : apolloAvailable ? "Apollo connected" : "Apollo not configured"}
               </Button>
             </div>
 
@@ -134,35 +168,74 @@ export default function EmailCampaign() {
             <div className="space-y-3">
               <p className="text-sm font-medium">Persona filters</p>
               <div className="space-y-2">
-                <Select>
+                <Select value={leadTitle || "none"} onValueChange={(v) => setLeadTitle(v === "none" ? "" : v)}>
                   <SelectTrigger className="bg-background"><SelectValue placeholder="Title: e.g. CTO" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cto">CTO</SelectItem>
-                    <SelectItem value="vp-eng">VP Engineering</SelectItem>
-                    <SelectItem value="founder">Founder</SelectItem>
+                    <SelectItem value="none">Any</SelectItem>
+                    <SelectItem value="CTO">CTO</SelectItem>
+                    <SelectItem value="VP Engineering">VP Engineering</SelectItem>
+                    <SelectItem value="Founder">Founder</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select>
+                <Select value={leadIndustry || "none"} onValueChange={(v) => setLeadIndustry(v === "none" ? "" : v)}>
                   <SelectTrigger className="bg-background"><SelectValue placeholder="Industry: e.g. SaaS" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="saas">SaaS</SelectItem>
-                    <SelectItem value="fintech">Fintech</SelectItem>
-                    <SelectItem value="devtools">DevTools</SelectItem>
+                    <SelectItem value="none">Any</SelectItem>
+                    <SelectItem value="SaaS">SaaS</SelectItem>
+                    <SelectItem value="Fintech">Fintech</SelectItem>
+                    <SelectItem value="DevTools">DevTools</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select>
+                <Select value={leadCompanySize || "none"} onValueChange={(v) => setLeadCompanySize(v === "none" ? "" : v)}>
                   <SelectTrigger className="bg-background"><SelectValue placeholder="Size: e.g. 50-500" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1-50">1-50 employees</SelectItem>
-                    <SelectItem value="50-500">50-500 employees</SelectItem>
-                    <SelectItem value="500+">500+ employees</SelectItem>
+                    <SelectItem value="none">Any</SelectItem>
+                    <SelectItem value="1,10">1-10 employees</SelectItem>
+                    <SelectItem value="11,50">11-50 employees</SelectItem>
+                    <SelectItem value="51,200">51-200 employees</SelectItem>
+                    <SelectItem value="201,500">201-500 employees</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="w-full bg-[hsl(var(--primary))] text-primary-foreground">
-                Find leads
+              {!apolloAvailable && apolloAvailable !== null && (
+                <p className="text-xs text-muted-foreground">Add APOLLO_API_KEY to the backend .env to search leads.</p>
+              )}
+              <Button
+                className="w-full bg-[hsl(var(--primary))] text-primary-foreground"
+                onClick={handleFindLeads}
+                disabled={leadsLoading || !apolloAvailable}
+              >
+                {leadsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Find leads"}
               </Button>
+              {leadsError && <p className="text-sm text-destructive">{leadsError}</p>}
             </div>
+
+            {leads.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <p className="text-sm font-medium">Results ({leads.length})</p>
+                <div className="max-h-[220px] overflow-auto rounded border border-border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Name</th>
+                        <th className="text-left p-2 font-medium">Title</th>
+                        <th className="text-left p-2 font-medium">Company</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leads.map((l) => (
+                        <tr key={l.id ?? `${l.first_name}-${l.organization_name}`} className="border-t border-border">
+                          <td className="p-2">{[l.first_name, l.last_name].filter(Boolean).join(" ")}</td>
+                          <td className="p-2">{l.title ?? "—"}</td>
+                          <td className="p-2">{l.organization_name ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-muted-foreground">Apollo search does not return emails; use Apollo Enrichment or paste emails above.</p>
+              </div>
+            )}
           </motion.div>
 
           {/* Draft panel */}

@@ -255,11 +255,10 @@ export default function Dashboard() {
           {showEngagementAnalytics && (
           <>
           <div className="grid grid-cols-3 gap-3 mb-1">
-            {[
-              { icon: Users,            label: "Total Reach",   value: "1,284", delta: "+18%" },
-              { icon: MousePointerClick, label: "Avg. Clicks",   value: "34",    delta: "+7%"  },
-              { icon: TrendingUp,       label: "Engagement Rate", value: "4.2%", delta: "+1.1%" },
-            ].map((stat, i) => (
+            {engagementStats.map((stat, i) => {
+              const iconMap = [Users, MousePointerClick, TrendingUp];
+              const Icon = iconMap[i] ?? TrendingUp;
+              return (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 8 }}
@@ -358,6 +357,25 @@ export default function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           </motion.div>
+
+          {engagementAnalysis !== null && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="readout-card p-4 space-y-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--sage))]" />
+                  AI analysis
+                </p>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setEngagementAnalysis(null)} aria-label="Dismiss">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">{engagementAnalysis}</p>
+            </motion.div>
+          )}
           </>
           )}
         </div>
