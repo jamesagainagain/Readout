@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X, TrendingUp, Users, MousePointerClick, Sparkles, Flame } from "lucide-react";
+import { RefreshCw, Copy, Pencil, Check, RotateCcw, MessageSquare, Mail, Linkedin, Loader2, X, TrendingUp, Users, MousePointerClick, Sparkles, Flame, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -77,6 +77,8 @@ export default function Dashboard() {
   const [improvingIdx, setImprovingIdx] = useState<number | null>(null);
   const [improveSuggestion, setImproveSuggestion] = useState<{ idx: number; improved_body: string; changes_summary: string } | null>(null);
   const [regeneratingSingle, setRegeneratingSingle] = useState<number | null>(null);
+  const [improveInputIdx, setImproveInputIdx] = useState<number | null>(null);
+  const [improveInstruction, setImproveInstruction] = useState("");
 
   const fetchDrafts = useCallback(async () => {
     if (!brief_id) return;
@@ -135,18 +137,26 @@ export default function Dashboard() {
 
   const cancelEdit = () => setEditingIdx(null);
 
-  const handleImprove = async (idx: number) => {
+  const openImproveChat = (idx: number) => {
+    setImproveInputIdx(idx);
+    setImproveInstruction("");
+    setImproveSuggestion(null);
+  };
+
+  const handleImprove = async (idx: number, instruction?: string) => {
     const draft = drafts.filter(d => d.channel === "reddit")[idx];
     if (!draft) return;
     setImprovingIdx(idx);
     setImproveSuggestion(null);
     try {
-      const res = await improveDraft({ body: draft.body, channel: "reddit" });
+      const res = await improveDraft({ body: draft.body, channel: "reddit", instruction: instruction || undefined });
       setImproveSuggestion({ idx, improved_body: res.improved_body, changes_summary: res.changes_summary });
     } catch {
       setImproveSuggestion({ idx, improved_body: "", changes_summary: "Failed to get suggestions. Try again." });
     } finally {
       setImprovingIdx(null);
+      setImproveInputIdx(null);
+      setImproveInstruction("");
     }
   };
 
@@ -502,7 +512,7 @@ export default function Dashboard() {
                             variant="ghost"
                             size="sm"
                             className="gap-1.5 h-8"
-                            onClick={() => handleImprove(i)}
+                            onClick={() => improveInputIdx === i ? setImproveInputIdx(null) : openImproveChat(i)}
                             disabled={improvingIdx === i}
                           >
                             {improvingIdx === i ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -558,6 +568,45 @@ export default function Dashboard() {
                       </motion.p>
                     )}
                   </AnimatePresence>
+
+                  {improveInputIdx === i && !improveSuggestion && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-2"
+                    >
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={improveInstruction}
+                          onChange={(e) => setImproveInstruction(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleImprove(i, improveInstruction);
+                            }
+                          }}
+                          placeholder="e.g. Make it shorter, add a hook, more technical…"
+                          className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]/30"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleImprove(i, improveInstruction)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Send className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 px-2"
+                        onClick={() => setImproveInputIdx(null)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </motion.div>
+                  )}
 
                   {improveSuggestion?.idx === i && improveSuggestion.improved_body && (
                     <motion.div
